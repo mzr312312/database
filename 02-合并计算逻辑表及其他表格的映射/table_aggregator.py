@@ -110,7 +110,8 @@ def aggregate_data(connection, config, base_id, base_name):
     d_table = f"d接口表_{base_id}_{base_name}"
     e_table = f"e服务表_{base_id}_{base_name}"
     f_table = f"f设备表_{base_id}_{base_name}"
-    g_table = f"g数据源表_{base_id}_{base_name}"  # 新增g表
+    g_table = f"g数据源表_{base_id}_{base_name}"
+    z_table = "z【字典】业务属性"  # 新增z表
 
     # 构建反向映射
     reverse_mapping = {v: k for k, v in config['column_mapping'].items()}
@@ -125,6 +126,9 @@ def aggregate_data(connection, config, base_id, base_name):
             select_columns.append(f"b.business_attribute AS `{new_col}`")
         elif orig_col == "business_attribute_a":
             select_columns.append(f"a.business_attribute AS `{new_col}`")
+        # 新增业务属性ID处理
+        elif orig_col == "business_attribute_id":
+            select_columns.append(f"z.`业务属性ID` AS `{new_col}`")
         # 新增数据源名称处理
         elif orig_col == "device_name":
             select_columns.append(f"g.device_name AS `{new_col}`")
@@ -132,7 +136,7 @@ def aggregate_data(connection, config, base_id, base_name):
             # 明确指定每个列的来源表
             if orig_col in ["tag_name", "ori_tag_name", "tag_code", "id",
                             "equipment_id", "general_attribute", "classification",
-                            "verify_status", "device_id"]:  # 添加了device_id
+                            "verify_status", "device_id"]:
                 select_columns.append(f"a.{orig_col} AS `{new_col}`")
             elif orig_col in ["aggregation_relation_id", "tag_id"]:
                 select_columns.append(f"c.{orig_col} AS `{new_col}`")
@@ -162,8 +166,9 @@ def aggregate_data(connection, config, base_id, base_name):
         {select_clause}
     FROM `{c_table}` c
     LEFT JOIN `{a_table}` a ON c.tag_id = a.id
-    LEFT JOIN `{g_table}` g ON a.device_id = g.id  -- 新增连接g表
+    LEFT JOIN `{g_table}` g ON a.device_id = g.id
     LEFT JOIN `{b_table}` b ON c.aggregation_relation_id = b.id
+    LEFT JOIN `{z_table}` z ON b.business_attribute = z.`业务属性名称`
     LEFT JOIN `{f_table}` f ON a.equipment_id = f.id
     LEFT JOIN `{e_table}` e ON b.id = e.agg_relation_id
     LEFT JOIN `{d_table}` d ON e.interface_id = d.id;
@@ -172,14 +177,40 @@ def aggregate_data(connection, config, base_id, base_name):
     try:
         print(f"正在为基地 {base_name} 执行数据聚合...")
 
-        # 获取c表的行数
+        # 获取各表的行数
         cursor.execute(f"SELECT COUNT(*) FROM `{c_table}`")
         c_count = cursor.fetchone()[0]
+        print(f"c表 '{c_table}' 行数: {c_count}")
+
+        cursor.execute(f"SELECT COUNT(*) FROM `{a_table}`")
+        a_count = cursor.fetchone()[0]
+        print(f"a表 '{a_table}' 行数: {a_count}")
+
+        cursor.execute(f"SELECT COUNT(*) FROM `{b_table}`")
+        b_count = cursor.fetchone()[0]
+        print(f"b表 '{b_table}' 行数: {b_count}")
+
+        cursor.execute(f"SELECT COUNT(*) FROM `{z_table}`")
+        z_count = cursor.fetchone()[0]
+        print(f"z表 '{z_table}' 行数: {z_count}")
+
+        # 检查z表中是否有数据
+        if z_count > 0:
+            cursor.execute(f"SELECT DISTINCT `业务属性名称` FROM `{z_table}` LIMIT 5")
+            z_samples = cursor.fetchall()
+            print(f"z表业务属性名称示例: {[sample[0] for sample in z_samples]}")
+
+        # 检查b表中的business_attribute值
+        if b_count > 0:
+            cursor.execute(f"SELECT DISTINCT business_attribute FROM `{b_table}` LIMIT 5")
+            b_samples = cursor.fetchall()
+            print(f"b表business_attribute示例: {[sample[0] for sample in b_samples]}")
 
         # 清空旧数据
         cursor.execute(f"TRUNCATE TABLE `{table_name}`")
 
         # 执行数据聚合
+        print("执行SQL语句...")
         cursor.execute(sql)
         connection.commit()
 
@@ -197,9 +228,20 @@ def aggregate_data(connection, config, base_id, base_name):
         else:
             print("行数一致，所有数据已保留")
 
+        # 检查汇总表的前几行数据
+        if summary_count > 0:
+            cursor.execute(f"SELECT * FROM `{table_name}` LIMIT 5")
+            sample_rows = cursor.fetchall()
+            print(f"汇总表数据示例 (前5行):")
+            for i, row in enumerate(sample_rows):
+                print(f"行 {i+1}: {row}")
+
     except Error as e:
         print(f"数据聚合错误: {e}")
         print(f"执行的SQL: {sql}")
+        # 获取更详细的错误信息
+        import traceback
+        traceback.print_exc()
         connection.rollback()
     finally:
         cursor.close()
