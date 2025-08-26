@@ -80,6 +80,7 @@
     "ja_agg_relation_tag_bind": "C计算逻辑表_采集点",
     "ja_interface": "D接口表",
     "ja_service_group": "E服务表",
-    "ja_equipment": "F设备表"
+    "ja_equipment": "F设备表",
+    "ja_device": "G数据源表"
   }
 }

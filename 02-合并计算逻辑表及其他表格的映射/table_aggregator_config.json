@@ -12,7 +12,7 @@
     "tag_num": "采集点数量",
     "enable": "聚合是否启用",
     "tag_name": "采集点名称",
-    "ori_tag_name": "数据源名称",
+    "device_name": "数据源名称",
     "tag_code": "采集点编码",
     "tag_id": "采集点ID",
     "equipment_id": "设备ID",
