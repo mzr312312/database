@@ -78,24 +78,44 @@ def create_summary_table(connection, table_name, column_order):
     """创建汇总表"""
     cursor = connection.cursor()
 
+    # 先删除已存在的表
+    drop_table_sql = f"DROP TABLE IF EXISTS `{table_name}`;"
+    try:
+        cursor.execute(drop_table_sql)
+        print(f"已删除已存在的表: {table_name}")
+    except Error as e:
+        print(f"删除表错误: {e}")
+        # 继续执行，可能表不存在
+
     column_defs = []
     for col_name in column_order:
         column_defs.append(f"`{col_name}` VARCHAR(255)")
 
     create_table_sql = f"""
-    CREATE TABLE IF NOT EXISTS `{table_name}` (
+    CREATE TABLE `{table_name}` (
         {",\n        ".join(column_defs)}
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """
 
     try:
         cursor.execute(create_table_sql)
-        print(f"表 {table_name} 创建成功或已存在")
+        print(f"表 {table_name} 创建成功")
     except Error as e:
         print(f"创建表错误: {e}")
         sys.exit(1)
     finally:
         cursor.close()
+
+
+def ensure_result_consumed(cursor):
+    """确保所有查询结果都被完全读取"""
+    try:
+        # 尝试获取所有剩余结果
+        for _ in cursor:
+            pass
+    except:
+        # 如果出现异常，忽略它
+        pass
 
 
 def aggregate_data(connection, config, base_id, base_name):
@@ -133,6 +153,9 @@ def aggregate_data(connection, config, base_id, base_name):
         # 新增数据源名称处理
         elif orig_col == "device_name":
             select_columns.append(f"g.device_name AS `{new_col}`")
+        # 新增车间代码处理
+        elif orig_col == "车间代码":
+            select_columns.append(f"y2.`车间代码` AS `{new_col}`")
         else:
             # 明确指定每个列的来源表
             if orig_col in ["tag_name", "ori_tag_name", "tag_code", "id",
@@ -143,7 +166,7 @@ def aggregate_data(connection, config, base_id, base_name):
                 select_columns.append(f"c.{orig_col} AS `{new_col}`")
             elif orig_col in ["aggregation_name", "aggregation_code", "business_code",
                               "application_agency", "aggregation_dimension", "datasource_num",
-                              "equipment_num", "tag_num", "enable"]:
+                              "equipment_num", "tagnum", "enable"]:
                 select_columns.append(f"b.{orig_col} AS `{new_col}`")
             elif orig_col in ["equipment_name", "equipment_code", "base_name", "workshop",
                               "workshop_section", "production_processes", "equipment_type",
@@ -172,43 +195,105 @@ def aggregate_data(connection, config, base_id, base_name):
     LEFT JOIN `{z_table}` z ON b.business_attribute = z.`业务属性名称`
     LEFT JOIN `{f_table}` f ON a.equipment_id = f.id
     LEFT JOIN `{e_table}` e ON b.id = e.agg_relation_id
-    LEFT JOIN `{d_table}` d ON e.interface_id = d.id;
+    LEFT JOIN `{d_table}` d ON e.interface_id = d.id
+    LEFT JOIN `{y_table}` y2 ON y2.`基地` = f.`base_name` AND y2.`车间名称` = f.`workshop`;
     """
 
     try:
         print(f"正在为基地 {base_name} 执行数据聚合...")
 
+        # 检查y表的列
+        cursor.execute(f"SHOW COLUMNS FROM `{y_table}`")
+        y_columns = [column[0] for column in cursor.fetchall()]
+        print(f"y表的列: {y_columns}")
+        ensure_result_consumed(cursor)
+
+        # 检查y表中是否有"基地"和"车间名称"列
+        if "基地" not in y_columns or "车间名称" not in y_columns:
+            print(f"错误: y表缺少必需的列 '基地' 或 '车间名称'")
+            sys.exit(1)
+
         # 获取各表的行数
         cursor.execute(f"SELECT COUNT(*) FROM `{c_table}`")
         c_count = cursor.fetchone()[0]
         print(f"c表 '{c_table}' 行数: {c_count}")
+        ensure_result_consumed(cursor)
 
         cursor.execute(f"SELECT COUNT(*) FROM `{a_table}`")
         a_count = cursor.fetchone()[0]
         print(f"a表 '{a_table}' 行数: {a_count}")
+        ensure_result_consumed(cursor)
 
         cursor.execute(f"SELECT COUNT(*) FROM `{b_table}`")
         b_count = cursor.fetchone()[0]
         print(f"b表 '{b_table}' 行数: {b_count}")
+        ensure_result_consumed(cursor)
 
         cursor.execute(f"SELECT COUNT(*) FROM `{z_table}`")
         z_count = cursor.fetchone()[0]
         print(f"z表 '{z_table}' 行数: {z_count}")
+        ensure_result_consumed(cursor)
 
-        # 检查z表中是否有数据
-        if z_count > 0:
-            cursor.execute(f"SELECT DISTINCT `业务属性名称` FROM `{z_table}` LIMIT 5")
-            z_samples = cursor.fetchall()
-            print(f"z表业务属性名称示例: {[sample[0] for sample in z_samples]}")
+        cursor.execute(f"SELECT COUNT(*) FROM `{y_table}`")
+        y_count = cursor.fetchone()[0]
+        print(f"y表 '{y_table}' 行数: {y_count}")
+        ensure_result_consumed(cursor)
 
-        # 检查b表中的business_attribute值
-        if b_count > 0:
-            cursor.execute(f"SELECT DISTINCT business_attribute FROM `{b_table}` LIMIT 5")
-            b_samples = cursor.fetchall()
-            print(f"b表business_attribute示例: {[sample[0] for sample in b_samples]}")
+        # 检查y表中是否有数据
+        if y_count > 0:
+            cursor.execute(f"SELECT DISTINCT `基地`, `车间名称` FROM `{y_table}` LIMIT 5")
+            y_samples = cursor.fetchall()
+            print(f"y表基地和车间名称示例: {y_samples}")
+            ensure_result_consumed(cursor)
+
+        # 检查f表中的base_name和workshop值
+        if a_count > 0:
+            cursor.execute(
+                f"SELECT DISTINCT f.base_name, f.workshop FROM `{f_table}` f JOIN `{a_table}` a ON f.id = a.equipment_id LIMIT 5")
+            f_samples = cursor.fetchall()
+            print(f"f表base_name和workshop示例: {f_samples}")
+            ensure_result_consumed(cursor)
+
+        # 检查SELECT语句返回的列数
+        test_select_sql = f"""
+        SELECT 
+            {select_clause}
+        FROM `{c_table}` c
+        LEFT JOIN `{a_table}` a ON c.tag_id = a.id
+        LEFT JOIN `{g_table}` g ON a.device_id = g.id
+        LEFT JOIN `{b_table}` b ON c.aggregation_relation_id = b.id
+        LEFT JOIN `{z_table}` z ON b.business_attribute = z.`业务属性名称`
+        LEFT JOIN `{f_table}` f ON a.equipment_id = f.id
+        LEFT JOIN `{e_table}` e ON b.id = e.agg_relation_id
+        LEFT JOIN `{d_table}` d ON e.interface_id = d.id
+        LEFT JOIN `{y_table}` y2 ON y2.`基地` = f.`base_name` AND y2.`车间名称` = f.`workshop`
+        LIMIT 1;
+        """
+
+        cursor.execute(test_select_sql)
+        column_count = len(cursor.description)
+        expected_count = len(config['column_order'])
+
+        print(f"SELECT语句返回的列数: {column_count}")
+        print(f"目标表的列数: {expected_count}")
+
+        if column_count != expected_count:
+            print("错误: SELECT语句返回的列数与目标表的列数不匹配!")
+            print("SELECT语句返回的列:")
+            for i, desc in enumerate(cursor.description):
+                print(f"{i + 1}. {desc[0]}")
+            print("目标表的列:")
+            for i, col in enumerate(config['column_order']):
+                print(f"{i + 1}. {col}")
+            ensure_result_consumed(cursor)
+            sys.exit(1)
+
+        # 消耗掉所有结果
+        ensure_result_consumed(cursor)
 
         # 清空旧数据
         cursor.execute(f"TRUNCATE TABLE `{table_name}`")
+        ensure_result_consumed(cursor)
 
         # 执行数据聚合
         print("执行SQL语句...")
@@ -218,6 +303,7 @@ def aggregate_data(connection, config, base_id, base_name):
         # 获取汇总表的行数
         cursor.execute(f"SELECT COUNT(*) FROM `{table_name}`")
         summary_count = cursor.fetchone()[0]
+        ensure_result_consumed(cursor)
 
         print(f"数据已成功聚合到 {table_name}")
         print(f"原始表c的行数: {c_count}")
@@ -235,7 +321,8 @@ def aggregate_data(connection, config, base_id, base_name):
             sample_rows = cursor.fetchall()
             print(f"汇总表数据示例 (前5行):")
             for i, row in enumerate(sample_rows):
-                print(f"行 {i+1}: {row}")
+                print(f"行 {i + 1}: {row}")
+            ensure_result_consumed(cursor)
 
     except Error as e:
         print(f"数据聚合错误: {e}")

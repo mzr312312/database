@@ -153,7 +153,7 @@ def merge_generated_files(exported_files, merged_export_path, timestamp):
 
     # 格式化合并后的Excel文件
     print("正在格式化合并后的文件...")
-    apply_excel_formatting(merged_filepath)
+    apply_excel_formatting_all_sheets(merged_filepath)
 
     return merged_filepath
 
