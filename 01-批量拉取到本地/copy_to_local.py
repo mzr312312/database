@@ -54,35 +54,52 @@ def sync_table(base_config, common_config, table_mapping, local_db_config):
 
                 print(f"同步表: {source_table} -> {target_table}")
 
-                # 1. 获取源表结构
-                company_cursor.execute(f"SHOW CREATE TABLE `{source_table}`")
-                create_table_sql = company_cursor.fetchone()[1]
+                # 1. 获取源表列信息
+                company_cursor.execute(f"SHOW COLUMNS FROM `{source_table}`")
+                columns = company_cursor.fetchall()
 
-                # 修改表名为目标表名
-                create_table_sql = create_table_sql.replace(
-                    f"CREATE TABLE `{source_table}`",
-                    f"CREATE TABLE `{target_table}`"
-                )
+                # 2. 构建新的创建表语句
+                column_definitions = []
+                for column in columns:
+                    column_name = column[0]
+                    # 特殊处理 tag_desc 列，使用 TEXT 类型
+                    if column_name == 'tag_desc':
+                        column_definitions.append(f"`{column_name}` TEXT")
+                    else:
+                        # 其他列使用 VARCHAR(200)
+                        column_definitions.append(f"`{column_name}` VARCHAR(200)")
 
-                # 2. 在本地库创建表(如果存在则先删除)
+                create_table_sql = f"CREATE TABLE `{target_table}` ({', '.join(column_definitions)})"
+
+                # 3. 在本地库创建表(如果存在则先删除)
                 local_cursor.execute(f"DROP TABLE IF EXISTS `{target_table}`")
                 local_cursor.execute(create_table_sql)
 
-                # 3. 同步数据
+                # 4. 同步数据
                 company_cursor.execute(f"SELECT * FROM `{source_table}`")
                 rows = company_cursor.fetchall()
 
                 # 获取列名
-                company_cursor.execute(f"SHOW COLUMNS FROM `{source_table}`")
-                columns = [column[0] for column in company_cursor.fetchall()]
+                columns = [column[0] for column in columns]
                 columns_str = ', '.join([f"`{col}`" for col in columns])
                 placeholders = ', '.join(['%s'] * len(columns))
 
                 # 批量插入数据
                 if rows:
+                    # 将所有数据转换为字符串，确保能插入VARCHAR列
+                    str_rows = []
+                    for row in rows:
+                        str_row = []
+                        for value in row:
+                            if value is None:
+                                str_row.append(None)
+                            else:
+                                str_row.append(str(value))
+                        str_rows.append(tuple(str_row))
+
                     local_cursor.executemany(
                         f"INSERT INTO `{target_table}` ({columns_str}) VALUES ({placeholders})",
-                        rows
+                        str_rows
                     )
 
                 print(f"  |- 同步完成: {len(rows)} 条数据")

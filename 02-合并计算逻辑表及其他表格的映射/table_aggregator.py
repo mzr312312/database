@@ -111,7 +111,8 @@ def aggregate_data(connection, config, base_id, base_name):
     e_table = f"e服务表_{base_id}_{base_name}"
     f_table = f"f设备表_{base_id}_{base_name}"
     g_table = f"g数据源表_{base_id}_{base_name}"
-    z_table = "z【字典】业务属性"  # 新增z表
+    y_table = "y【字典】车间编码"
+    z_table = "z【字典】业务属性"
 
     # 构建反向映射
     reverse_mapping = {v: k for k, v in config['column_mapping'].items()}

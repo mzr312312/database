@@ -3,6 +3,7 @@ import subprocess
 from datetime import datetime
 import sys
 import logging
+import threading
 
 
 # 配置日志
@@ -29,12 +30,31 @@ def setup_logging():
 
 logger = setup_logging()
 
-# 定义脚本的相对路径（使用原始字符串避免转义问题）
+# 定义脚本的相对路径
 SCRIPTS = [
     r"..\01-批量拉取到本地\copy_to_local.py",
     r"..\02-合并计算逻辑表及其他表格的映射\table_aggregator.py",
     r"..\03-合并采集点表和设备表\merge_tables.py"
 ]
+
+
+def read_output(stream, logger, script_path, is_stderr=False):
+    """读取输出流的线程函数"""
+    try:
+        while True:
+            line = stream.readline()
+            if not line:
+                break
+            line = line.strip()
+            if line:
+                if is_stderr:
+                    logger.error(f"[{script_path}] {line}")
+                    print(f"[{script_path}] ERROR: {line}")
+                else:
+                    logger.info(f"[{script_path}] {line}")
+                    print(f"[{script_path}] {line}")
+    except Exception as e:
+        logger.error(f"读取输出时出错: {e}")
 
 
 def run_script(script_path):
@@ -48,7 +68,7 @@ def run_script(script_path):
         logger.info(f"开始运行脚本: {script_abs_path}")
         logger.info(f"工作目录: {script_dir}")
 
-        # 创建子进程并实时捕获输出
+        # 创建子进程
         process = subprocess.Popen(
             [sys.executable, script_abs_path],
             stdout=subprocess.PIPE,
@@ -56,36 +76,31 @@ def run_script(script_path):
             text=True,
             encoding="utf-8",
             cwd=script_dir,
-            bufsize=1,  # 行缓冲
-            universal_newlines=True
+            bufsize=1
         )
 
-        # 实时输出处理
-        while True:
-            # 实时读取标准输出
-            output_line = process.stdout.readline()
-            if output_line:
-                logger.info(f"[{script_path}] {output_line.strip()}")
-                print(f"[{script_path}] {output_line.strip()}")  # 同时打印到控制台
+        # 创建线程来读取stdout和stderr
+        stdout_thread = threading.Thread(
+            target=read_output,
+            args=(process.stdout, logger, script_path, False)
+        )
+        stderr_thread = threading.Thread(
+            target=read_output,
+            args=(process.stderr, logger, script_path, True)
+        )
 
-            # 实时读取错误输出
-            error_line = process.stderr.readline()
-            if error_line:
-                logger.error(f"[{script_path}] {error_line.strip()}")
-                print(f"[{script_path}] ERROR: {error_line.strip()}")  # 同时打印到控制台
+        stdout_thread.daemon = True
+        stderr_thread.daemon = True
 
-            # 检查进程是否结束
-            if process.poll() is not None:
-                break
+        stdout_thread.start()
+        stderr_thread.start()
 
-        # 获取剩余输出
-        stdout, stderr = process.communicate()
-        if stdout:
-            logger.info(f"[{script_path}] 剩余输出:\n{stdout.strip()}")
-            print(f"[{script_path}] 剩余输出:\n{stdout.strip()}")
-        if stderr:
-            logger.error(f"[{script_path}] 剩余错误:\n{stderr.strip()}")
-            print(f"[{script_path}] 剩余错误:\n{stderr.strip()}")
+        # 等待进程结束
+        process.wait()
+
+        # 等待输出线程结束
+        stdout_thread.join(timeout=5)
+        stderr_thread.join(timeout=5)
 
         # 检查返回码
         return_code = process.returncode
@@ -123,6 +138,8 @@ def main():
         if not success:
             logger.error("检测到失败，停止后续执行")
             break
+        else:
+            logger.info(f"脚本 {script} 执行完成，继续下一个")
 
     logger.info(f"结束执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info("=" * 50)

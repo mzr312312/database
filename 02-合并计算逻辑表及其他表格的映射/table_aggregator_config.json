@@ -40,7 +40,8 @@
     "interface_type": "接口类型",
     "interface_url": "接口URL",
     "service_type": "接口服务对象",
-    "interface_topic": "接口topic"
+    "interface_topic": "接口topic",
+    "车间代码": "车间代码"
   },
   "column_order": [
     "聚合名称",
@@ -54,6 +55,7 @@
     "设备名称",
     "设备ID",
     "车间",
+    "车间代码",
     "设备编码",
     "校验状态",
     "一般属性",
