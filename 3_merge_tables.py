@@ -105,61 +105,9 @@ def merge_generated_files(exported_files, merged_export_path, timestamp):
     return merged_filepath
 
 
-def merge_generated_files(exported_files, merged_export_path, timestamp):
-    """合并所有生成的Excel文件到一个文件中"""
-    print("\n开始合并所有基地文件...")
-
-    # 创建合并文件路径
-    os.makedirs(merged_export_path, exist_ok=True)
-    merged_filename = f"【合并】采集点+设备_{timestamp}.xlsx"
-    merged_filepath = os.path.join(merged_export_path, merged_filename)
-
-    # 创建一个新的Excel写入器
-    with pd.ExcelWriter(merged_filepath, engine='openpyxl') as writer:
-        # 初始化汇总数据
-        all_data = []
-
-        for file_info in exported_files:
-            base = file_info['base']
-            filepath = file_info['filepath']
-
-            # 读取文件内容
-            df = pd.read_excel(filepath)
-
-            # 添加基地名称列（方便区分来源）
-            df.insert(0, '基地', base)
-
-            # 写入Excel，每个基地一个sheet
-            sheet_name = f"{file_info['index']}_{base}"[:31]  # Excel sheet名最大31字符
-            df.to_excel(writer, sheet_name=sheet_name, index=False)
-
-            # 将数据添加到汇总列表
-            all_data.append(df)
-
-            print(f"已合并: {base}基地 -> {merged_filename}")
-
-        # 创建汇总数据
-        if all_data:
-            summary_df = pd.concat(all_data, ignore_index=True)
-
-            # 写入汇总sheet
-            summary_sheet_name = "汇总"
-            summary_df.to_excel(writer, sheet_name=summary_sheet_name, index=False)
-
-            # 确保汇总sheet在第一个位置
-            workbook = writer.book
-            summary_sheet = workbook[summary_sheet_name]
-            workbook.move_sheet(summary_sheet, offset=-len(workbook.sheetnames))
-
-    # 格式化合并后的Excel文件
-    print("正在格式化合并后的文件...")
-    apply_excel_formatting_all_sheets(merged_filepath)
-
-    return merged_filepath
-
-
 def merge_and_export():
     """主处理函数：合并表并导出Excel"""
+    engine = None
     try:
         # 读取配置文件
         with open('3_config.json', 'r', encoding='utf-8') as f:
@@ -194,9 +142,11 @@ def merge_and_export():
             # 执行SQL合并表
             with engine.connect() as conn:
                 # 删除已存在的合并表
+                print(f"  清理旧表: {merged_table}")
                 conn.execute(text(f"DROP TABLE IF EXISTS `{merged_table}`"))
 
                 # 创建新合并表
+                print(f"  创建新表: {merged_table}")
                 create_sql = text(f"""
                 CREATE TABLE `{merged_table}` AS
                 SELECT 
@@ -226,12 +176,15 @@ def merge_and_export():
                 conn.execute(create_sql)
 
             # 读取合并表数据
+            print(f"  读取数据: {merged_table}")
             df = pd.read_sql_table(merged_table, engine)
 
             # 重命名列（英文列名 -> 中文列名）
+            print("  重命名列")
             df.rename(columns=column_mapping, inplace=True)
 
             # 按配置重排列
+            print("  调整列顺序")
             valid_columns = [col for col in column_order if col in df.columns]
             df = df[valid_columns]
 
@@ -248,10 +201,12 @@ def merge_and_export():
             filepath = os.path.join(export_path, filename)
 
             # 导出Excel
+            print(f"  导出到: {filepath}")
             df.to_excel(filepath, index=False)
             print(f"已导出: {filename}")
 
             # 应用Excel格式设置
+            print("  格式化Excel...")
             apply_excel_formatting_all_sheets(filepath)
             print(f"已格式化: {filename}")
 
@@ -281,6 +236,15 @@ def merge_and_export():
         import traceback
         traceback.print_exc()
 
+    finally:
+        # 确保释放数据库连接
+        if engine is not None:
+            print("正在释放数据库连接...")
+            engine.dispose()
+            print("数据库连接已释放")
+        print("资源清理完成")
+
 
 if __name__ == "__main__":
     merge_and_export()
+    print("程序已正常退出")
