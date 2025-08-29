@@ -8,7 +8,7 @@ import threading
 
 # 配置日志
 def setup_logging():
-    LOG_DIR = r"..\logs"
+    LOG_DIR = r"logs"
     os.makedirs(LOG_DIR, exist_ok=True)
     LOG_FILE = os.path.join(LOG_DIR, "execution_log.txt")
 
@@ -32,9 +32,10 @@ logger = setup_logging()
 
 # 定义脚本的相对路径
 SCRIPTS = [
-    r"..\01-批量拉取到本地\copy_to_local.py",
-    r"..\02-合并计算逻辑表及其他表格的映射\table_aggregator.py",
-    r"..\03-合并采集点表和设备表\merge_tables.py"
+    r"1_copy_to_local.py",
+    r"2_table_aggregator.py",
+    r"3_merge_tables.py",
+    r"4_merge_calc_tables.py"
 ]
 
 

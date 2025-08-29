@@ -15,7 +15,7 @@ db_config = {
 }
 
 # 输出路径配置
-output_directory = r"D:\工作\PARA\1.PROJECTS\【置顶00】各基地计算逻辑和采集点\00汇总表"
+output_directory = r"D:\工作\PARA\1.PROJECTS\【置顶00】各基地计算逻辑和采集点"
 
 # 表名列表
 tables = [

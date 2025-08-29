@@ -7,7 +7,7 @@ import os
 
 def load_config():
     """加载配置文件"""
-    config_path = os.path.join(os.path.dirname(__file__), 'copy_to_local_config.json')
+    config_path = os.path.join(os.path.dirname(__file__), '1_copy_to_local_config.json')
     with open(config_path, 'r', encoding='utf-8') as f:
         return json.load(f)
 

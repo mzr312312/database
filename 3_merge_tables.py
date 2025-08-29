@@ -162,7 +162,7 @@ def merge_and_export():
     """主处理函数：合并表并导出Excel"""
     try:
         # 读取配置文件
-        with open('config.json', 'r', encoding='utf-8') as f:
+        with open('3_config.json', 'r', encoding='utf-8') as f:
             config = json.load(f)
 
         # 从配置中获取所有必要信息

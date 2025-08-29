@@ -339,7 +339,7 @@ def main():
     print("开始数据聚合流程...")
 
     # 加载配置文件
-    config_path = "table_aggregator_config.json"
+    config_path = "2_table_aggregator_config.json"
     print(f"加载配置文件: {config_path}")
     config = load_config(config_path)
 
