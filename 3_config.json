@@ -12,6 +12,7 @@
         "tag_code": "采集点编码",
         "tag_desc": "采集点描述",
         "ori_tag_name": "采集点原名",
+        "source_device_name": "数据源名称",
         "equipment_id": "设备id",
         "general_attribute": "一般属性",
         "business_attribute": "业务属性",
@@ -30,6 +31,7 @@
     },
     "column_order": [
         "采集点名称",
+        "数据源名称",
         "采集点编码",
         "采集点id",
         "设备名称",
