@@ -64,12 +64,17 @@ def sync_table(base_config, common_config, table_mapping, local_db_config):
                     column_name = column[0]
                     # 特殊处理 tag_desc 列，使用 TEXT 类型
                     if column_name == 'tag_desc':
-                        column_definitions.append(f"`{column_name}` TEXT")
+                        column_definitions.append(f"`{column_name}` TEXT COLLATE utf8mb4_0900_ai_ci")
                     else:
-                        # 其他列使用 VARCHAR(200)
-                        column_definitions.append(f"`{column_name}` VARCHAR(200)")
+                        # 其他列使用 VARCHAR(200) 并指定校对规则
+                        column_definitions.append(f"`{column_name}` VARCHAR(200) COLLATE utf8mb4_0900_ai_ci")
 
-                create_table_sql = f"CREATE TABLE `{target_table}` ({', '.join(column_definitions)})"
+                # 创建表语句中指定字符集和校对规则
+                create_table_sql = f"""
+                CREATE TABLE `{target_table}` (
+                    {', '.join(column_definitions)}
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+                """
 
                 # 3. 在本地库创建表(如果存在则先删除)
                 local_cursor.execute(f"DROP TABLE IF EXISTS `{target_table}`")

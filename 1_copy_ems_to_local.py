@@ -90,6 +90,8 @@ def copy_table(pg_conn, mysql_conn, src_schema, src_table, dest_table, col_mappi
 
         # 创建目标表
         mysql_cur = mysql_conn.cursor()
+
+        # 构建CREATE TABLE语句
         create_sql = f"CREATE TABLE IF NOT EXISTS `{dest_table}` ("
 
         # 列处理：应用列名映射或默认清理
@@ -100,11 +102,17 @@ def copy_table(pg_conn, mysql_conn, src_schema, src_table, dest_table, col_mappi
             final_name = col_mapping.get(orig_name, clean_name(orig_name)) if col_mapping else clean_name(orig_name)
             mapped_columns.append((orig_name, final_name, col[1], col[2]))  # (原始名, 映射名, 类型, 长度)
 
-            # 获取MySQL类型
+            # 获取MySQL类型并添加COLLATE
             mysql_type = map_pg_to_mysql_type(col[1])
-            create_sql += f"\n  `{final_name}` {mysql_type},"
 
-        create_sql = create_sql.rstrip(',') + "\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+            # 特殊处理：JSON类型不需要指定COLLATE
+            if 'JSON' in mysql_type.upper():
+                create_sql += f"\n  `{final_name}` {mysql_type},"
+            else:
+                create_sql += f"\n  `{final_name}` {mysql_type} COLLATE utf8mb4_0900_ai_ci,"
+
+        # 完成CREATE TABLE语句，指定默认字符集和校对规则
+        create_sql = create_sql.rstrip(',') + "\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;"
 
         # 执行创建表操作
         mysql_cur.execute(f"DROP TABLE IF EXISTS `{dest_table}`;")

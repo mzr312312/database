@@ -32,7 +32,7 @@ def process_base(i, base, config, timestamp):
 
         with engine.connect() as conn:
             # === 1. 创建数据库中的合并表（持久化）===
-            print(f"  [1/4] 清理并创建合并表: {merged_table}")
+            print(f"  [1/6] 清理并创建合并表: {merged_table}")
             conn.execute(text(f"DROP TABLE IF EXISTS `{merged_table}`"))
             create_sql = text(f"""
                 CREATE TABLE `{merged_table}` AS
@@ -67,10 +67,10 @@ def process_base(i, base, config, timestamp):
             conn.commit()
 
             # === 2. 读取三张原始表 ===
-            print(f"  [2/4] 读取采集点表: {point_table}")
+            print(f"  [2/6] 读取采集点表: {point_table}")
             df_p = pd.read_sql(text(f"SELECT * FROM `{point_table}`"), conn)
 
-            print(f"  [3/4] 读取设备表: {device_table}")
+            print(f"  [3/6] 读取设备表: {device_table}")
             df_d = pd.read_sql(text(f"""
                 SELECT id, equipment_name, equipment_code, base_name, workshop, 
                        workshop_section, production_processes, equipment_type, 
@@ -78,17 +78,47 @@ def process_base(i, base, config, timestamp):
                 FROM `{device_table}`
             """), conn)
 
-            print(f"  [4/4] 读取数据源表: {source_table}")
-            df_g = pd.read_sql(text(f"SELECT id, device_name FROM `{source_table}`"), conn)
+            print(f"  [4/6] 读取数据源表: {source_table}")
+            df_g = pd.read_sql(text(f"SELECT id, device_name AS source_device_name FROM `{source_table}`"), conn)
 
-        # === 3. 内存中 JOIN ===
-        print(f"  [5/4] 内存中合并数据...")
-        df = df_p.merge(df_d, left_on='equipment_id', right_on='id', how='left', suffixes=('', '_d'))
-        df = df.merge(df_g, left_on='device_id', right_on='id', how='left', suffixes=('', '_g'))
+        # === 修改后的内存 JOIN 部分 ===
+        print(f"  [5/6] 内存中合并数据...")
+        start_merge = time.time()
 
-        # 删除冗余的 id_d 和 id_g
-        df.drop(columns=['id_d'], errors='ignore', inplace=True)
-        df.drop(columns=['id_g'], errors='ignore', inplace=True)
+        # 指定需要保留的列，减少内存占用
+        keep_cols = ['point_id', 'tag_name', 'tag_code', 'tag_desc', 'ori_tag_name',
+                     'equipment_id', 'general_attribute', 'business_attribute',
+                     'classification', 'verify_status', 'device_id']
+
+        df_p_renamed = df_p.rename(columns={'id': 'point_id'})[keep_cols]
+
+        # 第一次合并（采集点+设备）
+        df_interim = df_p_renamed.merge(
+            df_d.rename(columns={'id': 'device_id_d'})[
+                ['device_id_d', 'equipment_name', 'equipment_code', 'base_name',
+                 'workshop', 'workshop_section', 'production_processes',
+                 'equipment_type', 'equipment_sub_type', 'equipment_attribute']
+            ],
+            left_on='equipment_id',
+            right_on='device_id_d',
+            how='left'
+        )
+
+        # 第二次合并（+数据源）
+        df = df_interim.merge(
+            df_g.rename(columns={'id': 'source_id_g'})[
+                ['source_id_g', 'source_device_name']
+            ],
+            left_on='device_id_d',  # 使用第一次合并后的设备ID列
+            right_on='source_id_g',
+            how='left'
+        )
+
+        # 删除冗余列
+        df.drop(columns=['device_id_d', 'source_id_g'], inplace=True, errors='ignore')
+
+        print(f"  合并完成, 耗时: {time.time() - start_merge:.2f}秒")
+        print(f"  合并后数据大小: {len(df)}行 x {len(df.columns)}列")
 
         # === 4. 重命名列 ===
         df.rename(columns=column_mapping, inplace=True)
@@ -111,7 +141,7 @@ def process_base(i, base, config, timestamp):
         filename = f"{merged_table}_{timestamp}.xlsx"
         filepath = os.path.join(export_path, filename)
 
-        print(f"  [6/4] 导出Excel: {filename}")
+        print(f"  [6/6] 导出Excel: {filename}")
         with pd.ExcelWriter(filepath, engine='xlsxwriter') as writer:
             sheet_name = "采集点+设备+数据源"
             df.to_excel(writer, sheet_name=sheet_name, index=False)
@@ -173,7 +203,7 @@ def merge_generated_files(exported_files, merged_export_path, timestamp):
     start_time = time.time()
 
     os.makedirs(merged_export_path, exist_ok=True)
-    merged_filename = f"【合并】采集点+设备_{timestamp}.xlsx"
+    merged_filename = f"【合并】采集点+设备+数据源_{timestamp}.xlsx"
     merged_filepath = os.path.join(merged_export_path, merged_filename)
 
     try:
