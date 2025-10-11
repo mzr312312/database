@@ -88,7 +88,7 @@ def process_base(i, base, config, timestamp):
         # 指定需要保留的列，减少内存占用
         keep_cols = ['point_id', 'tag_name', 'tag_code', 'tag_desc', 'ori_tag_name',
                      'equipment_id', 'general_attribute', 'business_attribute',
-                     'classification', 'verify_status', 'device_id']
+                     'classification', 'verify_status', 'device_id']  # 确保包含device_id
 
         df_p_renamed = df_p.rename(columns={'id': 'point_id'})[keep_cols]
 
@@ -104,12 +104,12 @@ def process_base(i, base, config, timestamp):
             how='left'
         )
 
-        # 第二次合并（+数据源）
+        # 第二次合并（+数据源）- 修复连接键
         df = df_interim.merge(
             df_g.rename(columns={'id': 'source_id_g'})[
                 ['source_id_g', 'source_device_name']
             ],
-            left_on='device_id_d',  # 使用第一次合并后的设备ID列
+            left_on='device_id',  # 关键修复：使用采集点表的device_id字段
             right_on='source_id_g',
             how='left'
         )

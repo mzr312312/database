@@ -36,7 +36,8 @@ SCRIPTS = [
     r"1_copy_ems_to_local.py",
     r"2_table_aggregator.py",
     r"3_merge_tables.py",
-    r"4_merge_calc_tables.py"
+    r"4_merge_calc_tables.py",
+    r"5_Equipment Ledger Merge.py"
 ]
 
 
