@@ -193,15 +193,15 @@ def main():
         table_mappings = [
             {'src_schema': 'from_demo', 'src_table': 'dim_base', 'dest_table': 'x【字典】基地编码'},
             {'src_schema': 'from_demo', 'src_table': 'dim_system_type', 'dest_table': 'w【字典】系统编码'},
-            # {
-            #     'src_schema': 'public',
-            #     'src_table': 'dim_energy_attribute',
-            #     'dest_table': 'z【字典】业务属性',
-            #     'col_mapping': {
-            #         'id': '业务属性ID',
-            #         'name': '业务属性名称'
-            #     }
-            # },
+            {
+                'src_schema': 'public',
+                'src_table': 'dim_energy_attribute',
+                'dest_table': 'z【字典】业务属性',
+                'col_mapping': {
+                    'id': '业务属性ID',
+                    'name': '业务属性名称'
+                }
+            },
         ]
 
         for mapping in table_mappings:

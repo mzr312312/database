@@ -43,11 +43,16 @@
     "interface_topic": "接口topic",
     "车间代码": "车间代码",
     "description": "描述",
+    "creator": "创建人",
+    "updater": "更新人",
+    "create_time": "创建时间",
+    "update_time": "更新时间",
     "business_info1": "辅助列1",
     "business_info2": "辅助列2",
     "business_info3": "辅助列3"
   },
   "column_order": [
+    "基地",
     "聚合名称",
     "聚合分类",
     "聚合维度",
@@ -91,8 +96,11 @@
     "设备数量",
     "采集点数量",
     "聚合是否启用",
-    "基地",
-    "工序"
+    "工序",
+    "创建人",
+    "更新人",
+    "创建时间",
+    "更新时间"
   ],
   "column_sources": {
     "aggregation_name": "b",
@@ -131,6 +139,10 @@
     "interface_type": "d",
     "interface_url": "d",
     "service_type": "d",
-    "interface_topic": "d"
+    "interface_topic": "d",
+    "creator": "b",
+    "updater": "b",
+    "create_time": "b",
+    "update_time": "b"
   }
 }
