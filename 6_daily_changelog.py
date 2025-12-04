@@ -16,7 +16,7 @@ FILE_PATTERN = "【合并】计算逻辑_*.xlsx"
 TARGET_SHEET = "汇总"
 
 # 4. 指定复合主键
-KEY_COLS = ['基地', '聚合名称', '采集点编码']
+KEY_COLS = ['基地', '聚合名称', '采集点ID']
 
 # 5. 输出目录 (当前脚本所在目录下的 change_log 文件夹)
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
